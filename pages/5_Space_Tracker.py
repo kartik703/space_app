@@ -1,31 +1,40 @@
-import streamlit as st, pandas as pd, pathlib
+import streamlit as st, pandas as pd, altair as alt, pathlib
+from utils import read_csv_safe
 
-st.title("📡 Space Launch Tracker — Missions, Reliability, Delays")
+st.set_page_config(page_title="Space Tracker", page_icon="📡", layout="wide")
+st.title("📡 Space Tracker — Upcoming & History")
 
-p_up = pathlib.Path("data/launches.csv")
-p_hist = pathlib.Path("data/launches_history.csv")
+up = read_csv_safe("data/launches.csv", parse_dates=["window_start"])
+hist = read_csv_safe("data/launches_history.csv", parse_dates=["window_start","window_end"])
 
-col1, col2 = st.columns(2)
+q = st.text_input("Search mission/provider/pad", "")
 
-if p_up.exists():
-    up = pd.read_csv(p_up, parse_dates=["window_start"]).sort_values("window_start")
-    with col1:
-        st.metric("Upcoming launches", len(up))
-        st.dataframe(up[["window_start","name","provider","vehicle","pad","location","mission"]].head(50),
-                     use_container_width=True)
+if not up.empty:
+    f = up.copy()
+    if q:
+        ql = q.lower()
+        f = f[f.apply(lambda r: ql in str(r.values).lower(), axis=1)]
+    st.subheader("Upcoming launches")
+    st.dataframe(f.sort_values("window_start").head(200), use_container_width=True)
 else:
-    st.warning("No upcoming launches data.")
+    st.info("No upcoming launches yet.")
 
-if p_hist.exists():
-    hist = pd.read_csv(p_hist, parse_dates=["window_start","net"])
-    rel = (hist.assign(success=lambda d: (d["status"]=="Success").astype(int))
-                .groupby("provider")["success"].mean().sort_values(ascending=False))
-    delays = (hist.groupby("provider")["delay_hours"].mean().sort_values())
-    with col2:
-        st.subheader("Provider reliability (success rate)")
-        st.dataframe(rel.rename("success_rate").reset_index(), use_container_width=True)
-        st.subheader("Average schedule slip (hours)")
-        st.dataframe(delays.rename("avg_delay_h").reset_index(), use_container_width=True)
-    st.caption("Source: Launch Library 2. Rates over the latest ~100 launches.")
+st.markdown("---")
+st.subheader("Provider reliability (history)")
+
+if not hist.empty:
+    grp = hist.groupby("provider").agg(
+        total=("status","count"),
+        success=("status", lambda s: (s=="Success").sum()),
+        fail=("status", lambda s: (s!="Success").sum())
+    ).reset_index()
+    grp["success_rate"] = (grp["success"] / grp["total"] * 100).round(1)
+
+    chart = alt.Chart(grp.sort_values("success_rate", ascending=False)).mark_bar().encode(
+        x=alt.X("success_rate:Q", title="Success rate (%)"),
+        y=alt.Y("provider:N", sort="-x"),
+        tooltip=["provider","success_rate","total","success","fail"]
+    ).properties(height=340)
+    st.altair_chart(chart, use_container_width=True)
 else:
-    st.info("No historical launches yet.")
+    st.info("No historical dataset yet.")
