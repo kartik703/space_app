@@ -2,6 +2,7 @@
 from pathlib import Path
 import subprocess
 import sys
+import os
 import datetime as dt
 import streamlit as st
 
@@ -13,26 +14,34 @@ st.set_page_config(
     page_icon="🛰️",
     layout="wide",
 )
-# NOTE: file-watcher is disabled via .streamlit/config.toml in cloud:
+# NOTE: Disable file-watcher in cloud via .streamlit/config.toml:
 # [server]
 # headless = true
 # fileWatcherType = "none"
 # runOnSave = false
 
 # ──────────────────────────
-# Helpers to run scripts and populate data on demand
+# Helpers: run jobs (with Space-Track secrets) + ensure data
 # ──────────────────────────
 def run_job(cmd: list[str]) -> None:
-    """Run a python script (or python + args). Never hard fail the UI."""
+    """Run a Python script (with args). Never hard-fail the UI."""
     try:
-        subprocess.run([sys.executable, *cmd], check=False)
+        env = os.environ.copy()
+        # Wire Space-Track credentials from Streamlit secrets -> environment
+        if "spacetrack" in st.secrets:
+            st_user = st.secrets["spacetrack"].get("username", "")
+            st_pass = st.secrets["spacetrack"].get("password", "")
+            if st_user and st_pass:
+                env["SPACETRACK_USERNAME"] = st_user
+                env["SPACETRACK_PASSWORD"] = st_pass
+        subprocess.run([sys.executable, *cmd], check=False, env=env)
     except Exception as e:
         st.warning(f"⚠️ Job failed: {' '.join(cmd)} → {e}")
 
 def ensure_data() -> None:
     """
-    Create /data and populate any missing CSVs.
-    Conjunctions depend on TLEs, so generate them only if TLE fetch succeeded.
+    Populate any missing CSVs on-demand.
+    Conjunctions depend on TLEs; only compute if TLE fetch succeeded.
     """
     Path("data").mkdir(parents=True, exist_ok=True)
 
@@ -46,7 +55,8 @@ def ensure_data() -> None:
         ("data/launch_weather.csv",   ["scripts/fetch_launch_weather.py"]),
         ("data/launches.csv",         ["scripts/fetch_launches.py"]),
         ("data/launches_history.csv", ["scripts/fetch_launches_history.py"]),
-        ("data/tle_small.csv",        ["scripts/fetch_tle.py"]),  # prerequisite for conjunctions
+        # TLEs (now robust: Space-Track primary, CelesTrak fallback inside script)
+        ("data/tle_small.csv",        ["scripts/fetch_tle.py"]),
     ]
     for target, cmd in base_jobs:
         p = Path(target)
@@ -67,13 +77,15 @@ def ensure_data() -> None:
                     "--max_sats", "120", "--top_n", "200",
                 ])
     else:
-        st.info("Skipping conjunctions for now (TLE fetch not available). Use sidebar ‘Refresh’ to retry.")
+        st.info("TLEs not available yet; conjunctions will generate automatically after TLE fetch succeeds.")
 
-# Sidebar manual refresh
+# ──────────────────────────
+# Sidebar controls
+# ──────────────────────────
 with st.sidebar:
     st.header("Controls")
     if st.button("🔄 Refresh all data now"):
-        # Re-run all independent jobs
+        # Re-run the base jobs (order matters: TLEs before conjunctions)
         for _, cmd in [
             ("data/kp_latest.csv",        ["scripts/fetch_space_weather.py"]),
             ("data/kp_forecast.csv",      ["scripts/forecast_kp.py"]),
@@ -86,6 +98,7 @@ with st.sidebar:
             ("data/tle_small.csv",        ["scripts/fetch_tle.py"]),
         ]:
             run_job(cmd)
+
         # Try conjunctions only if TLEs present
         if Path("data/tle_small.csv").exists() and Path("data/tle_small.csv").stat().st_size > 0:
             run_job([
@@ -96,7 +109,9 @@ with st.sidebar:
             ])
         st.success("Refreshed. Reload the page to see updates.")
 
-# First-load populate (keeps repo clean of data files)
+# ──────────────────────────
+# First-load populate (no CSVs committed to Git)
+# ──────────────────────────
 ensure_data()
 
 # ──────────────────────────
@@ -150,7 +165,7 @@ def file_status(p: Path) -> str:
         return f"✅ *(updated {ts})*"
     return "❌"
 
-data_files = [
+for name in [
     "kp_latest.csv",
     "kp_forecast.csv",
     "asteroids.csv",
@@ -161,8 +176,6 @@ data_files = [
     "launch_weather.csv",
     "launches.csv",
     "launches_history.csv",
-]
-
-for name in data_files:
+]:
     p = Path("data") / name
     st.write(f"- `{name}`: {file_status(p)}")
