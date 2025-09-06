@@ -1,5 +1,4 @@
-import streamlit as st
-st.set_option("server.fileWatcherType", "none")
+
 
 import streamlit as st
 from pathlib import Path
