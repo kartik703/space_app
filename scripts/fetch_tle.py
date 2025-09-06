@@ -1,12 +1,18 @@
-import requests, pandas as pd
+# scripts/fetch_tle.py
+import requests, pandas as pd, time
 from math import pi
 from pathlib import Path
 
 OUT = Path("data/tle_small.csv")
 OUT.parent.mkdir(parents=True, exist_ok=True)
 
-URL = "https://celestrak.org/NORAD/elements/gp.php"
-PARAMS = {"GROUP":"starlink","FORMAT":"tle"}
+# Try both mirrors + groups (Starlink gives more close passes; fall back to active)
+ENDPOINTS = [
+    ("https://celestrak.org/NORAD/elements/gp.php", {"GROUP":"starlink","FORMAT":"tle"}),
+    ("https://celestrak.com/NORAD/elements/gp.php", {"GROUP":"starlink","FORMAT":"tle"}),
+    ("https://celestrak.org/NORAD/elements/gp.php", {"GROUP":"active","FORMAT":"tle"}),
+    ("https://celestrak.com/NORAD/elements/gp.php", {"GROUP":"active","FORMAT":"tle"}),
+]
 
 MU = 398600.4418  # km^3/s^2
 RE = 6378.137     # km
@@ -33,11 +39,36 @@ def parse_record(name_line, l1, l2):
         "l2": l2.strip()
     }
 
-def main():
-    r = requests.get(URL, params=PARAMS, headers={"User-Agent":"space-intel-app/1.0"}, timeout=90)
-    r.raise_for_status()
-    lines = r.text.splitlines()
+def try_fetch():
+    s = requests.Session()
+    s.headers.update({"User-Agent":"space-intel-app/1.0"})
+    for url, params in ENDPOINTS:
+        # retry with backoff
+        for attempt in range(3):
+            try:
+                r = s.get(url, params=params, timeout=20)
+                r.raise_for_status()
+                if "1 " in r.text and "2 " in r.text:
+                    return r.text
+            except Exception:
+                time.sleep(1.5 * (attempt+1))
+    return None
 
+def main():
+    txt = try_fetch()
+    if not txt:
+        # If we already have a previous CSV, keep it; else write a safe empty file
+        if OUT.exists() and OUT.stat().st_size > 0:
+            print("Fetch TLE failed; keeping previous tle_small.csv")
+            return
+        pd.DataFrame(columns=[
+            "satname","norad_id","inclination_deg","eccentricity",
+            "mean_motion_rev_per_day","perigee_km","apogee_km","l1","l2"
+        ]).to_csv(OUT, index=False)
+        print("Fetch TLE failed; wrote empty tle_small.csv to avoid downstream crashes")
+        return
+
+    lines = txt.splitlines()
     rows = []
     i = 0
     while i < len(lines)-1:
@@ -54,9 +85,9 @@ def main():
         i += 1
 
     df = pd.DataFrame(rows)
-    if len(df)>200: df = df.head(200)
+    if len(df) > 200: df = df.head(200)
     df.to_csv(OUT, index=False)
-    print("Saved", len(df), "→", OUT)
+    print(f"Saved {len(df)} → {OUT}")
 
 if __name__ == "__main__":
     main()

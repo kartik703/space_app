@@ -13,61 +13,90 @@ st.set_page_config(
     page_icon="🛰️",
     layout="wide",
 )
-
-# NOTE: Don't set server.fileWatcherType here (Cloud forbids runtime change).
-# Use .streamlit/config.toml instead:
+# NOTE: file-watcher is disabled via .streamlit/config.toml in cloud:
 # [server]
 # headless = true
 # fileWatcherType = "none"
 # runOnSave = false
 
 # ──────────────────────────
-# On-demand data fetch (no CSVs in repo)
+# Helpers to run scripts and populate data on demand
 # ──────────────────────────
-DATA_JOBS = [
-    ("data/kp_latest.csv",        ["scripts/fetch_space_weather.py"]),
-    ("data/kp_forecast.csv",      ["scripts/forecast_kp.py"]),
-    ("data/asteroids.csv",        ["scripts/fetch_asteroids.py"]),
-    ("data/commodities.csv",      ["scripts/fetch_commodities.py"]),
-    ("data/asteroids_scored.csv", ["scripts/compute_asteroid_profit.py"]),
-    ("data/tle_small.csv",        ["scripts/fetch_tle.py"]),
-    # Light default propagation so cloud stays responsive
-    ("data/conjunctions.csv",     ["scripts/conjunctions.py",
-                                   "--only_leo",
-                                   "--threshold_km", "20",
-                                   "--horizon_h", "24",
-                                   "--step_s", "60",
-                                   "--max_sats", "120",
-                                   "--top_n", "200"]),
-    ("data/launch_weather.csv",   ["scripts/fetch_launch_weather.py"]),
-    ("data/launches.csv",         ["scripts/fetch_launches.py"]),
-    ("data/launches_history.csv", ["scripts/fetch_launches_history.py"]),
-]
-
 def run_job(cmd: list[str]) -> None:
+    """Run a python script (or python + args). Never hard fail the UI."""
     try:
         subprocess.run([sys.executable, *cmd], check=False)
     except Exception as e:
         st.warning(f"⚠️ Job failed: {' '.join(cmd)} → {e}")
 
 def ensure_data() -> None:
-    """Create /data and populate any missing CSVs on demand."""
+    """
+    Create /data and populate any missing CSVs.
+    Conjunctions depend on TLEs, so generate them only if TLE fetch succeeded.
+    """
     Path("data").mkdir(parents=True, exist_ok=True)
-    for target, cmd in DATA_JOBS:
+
+    # 1) Independent datasets (or light deps)
+    base_jobs = [
+        ("data/kp_latest.csv",        ["scripts/fetch_space_weather.py"]),
+        ("data/kp_forecast.csv",      ["scripts/forecast_kp.py"]),
+        ("data/asteroids.csv",        ["scripts/fetch_asteroids.py"]),
+        ("data/commodities.csv",      ["scripts/fetch_commodities.py"]),
+        ("data/asteroids_scored.csv", ["scripts/compute_asteroid_profit.py"]),
+        ("data/launch_weather.csv",   ["scripts/fetch_launch_weather.py"]),
+        ("data/launches.csv",         ["scripts/fetch_launches.py"]),
+        ("data/launches_history.csv", ["scripts/fetch_launches_history.py"]),
+        ("data/tle_small.csv",        ["scripts/fetch_tle.py"]),  # prerequisite for conjunctions
+    ]
+    for target, cmd in base_jobs:
         p = Path(target)
         if not p.exists() or p.stat().st_size == 0:
             with st.spinner(f"Fetching {p.name} …"):
                 run_job(cmd)
 
+    # 2) Dependent dataset: conjunctions (requires TLEs)
+    tle_path = Path("data/tle_small.csv")
+    conj_path = Path("data/conjunctions.csv")
+    if tle_path.exists() and tle_path.stat().st_size > 0:
+        if not conj_path.exists() or conj_path.stat().st_size == 0:
+            with st.spinner("Propagating conjunctions (sgp4) …"):
+                run_job([
+                    "scripts/conjunctions.py",
+                    "--only_leo", "--threshold_km", "20",
+                    "--horizon_h", "24", "--step_s", "60",
+                    "--max_sats", "120", "--top_n", "200",
+                ])
+    else:
+        st.info("Skipping conjunctions for now (TLE fetch not available). Use sidebar ‘Refresh’ to retry.")
+
 # Sidebar manual refresh
 with st.sidebar:
     st.header("Controls")
     if st.button("🔄 Refresh all data now"):
-        for _, cmd in DATA_JOBS:
+        # Re-run all independent jobs
+        for _, cmd in [
+            ("data/kp_latest.csv",        ["scripts/fetch_space_weather.py"]),
+            ("data/kp_forecast.csv",      ["scripts/forecast_kp.py"]),
+            ("data/asteroids.csv",        ["scripts/fetch_asteroids.py"]),
+            ("data/commodities.csv",      ["scripts/fetch_commodities.py"]),
+            ("data/asteroids_scored.csv", ["scripts/compute_asteroid_profit.py"]),
+            ("data/launch_weather.csv",   ["scripts/fetch_launch_weather.py"]),
+            ("data/launches.csv",         ["scripts/fetch_launches.py"]),
+            ("data/launches_history.csv", ["scripts/fetch_launches_history.py"]),
+            ("data/tle_small.csv",        ["scripts/fetch_tle.py"]),
+        ]:
             run_job(cmd)
+        # Try conjunctions only if TLEs present
+        if Path("data/tle_small.csv").exists() and Path("data/tle_small.csv").stat().st_size > 0:
+            run_job([
+                "scripts/conjunctions.py",
+                "--only_leo", "--threshold_km", "20",
+                "--horizon_h", "24", "--step_s", "60",
+                "--max_sats", "120", "--top_n", "200",
+            ])
         st.success("Refreshed. Reload the page to see updates.")
 
-# First-load populate (keeps repo clean)
+# First-load populate (keeps repo clean of data files)
 ensure_data()
 
 # ──────────────────────────
@@ -82,20 +111,20 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-st.caption("Real data. Auto-fetched on demand and refreshed nightly via GitHub Actions.")
+st.caption("Real data. Auto-fetched on demand; nightly refresh via GitHub Actions.")
 
 st.markdown(
     """
 **Modules**
 1. 🌞 Space Weather — NOAA Kp + 48h forecast  
 2. 🪨 Asteroid Mining — JPL SBDB + Δv cost + commodity pricing  
-3. 🛰️ Collisions — sgp4 propagation + close-approach screening  
+3. 🛰️ Conjunctions — sgp4 propagation + close-approach screening  
 4. 🚀 Launch Window — Weather + target-orbit feasibility  
 5. 📡 Space Tracker — Missions, reliability, delays
 """
 )
 
-# Quick links to pages (works on Streamlit ≥1.25)
+# Quick links to pages
 links = [
     ("pages/1_Weather.py", "🌞 Space Weather"),
     ("pages/2_Asteroid_Mining.py", "🪨 Asteroid Mining"),
@@ -109,7 +138,6 @@ for col, (path, label) in zip(cols, links):
         try:
             st.page_link(path, label=label, icon="➡️")
         except Exception:
-            # Fallback for older Streamlit: simple markdown link
             st.markdown(f"- [{label}]({path})")
 
 st.divider()
@@ -135,7 +163,6 @@ data_files = [
     "launches_history.csv",
 ]
 
-data_dir = Path("data")
 for name in data_files:
-    p = data_dir / name
+    p = Path("data") / name
     st.write(f"- `{name}`: {file_status(p)}")
