@@ -9,11 +9,18 @@ st.set_page_config(page_title="Space Intelligence Super App", page_icon="🛰️
 
 # ───────────── helpers ─────────────
 def read_csv_safe(path: str, parse_dates=None) -> pd.DataFrame:
+    """Read CSV. If parse_dates provided but missing, fall back gracefully."""
     p = Path(path)
     if not p.exists() or p.stat().st_size == 0:
         return pd.DataFrame()
     try:
-        return pd.read_csv(p, parse_dates=parse_dates)
+        df = pd.read_csv(p)
+        # convert only columns that exist
+        if parse_dates:
+            for c in parse_dates:
+                if c in df.columns:
+                    df[c] = pd.to_datetime(df[c], errors="coerce", utc=True)
+        return df
     except Exception as e:
         st.warning(f"Could not read {path}: {e}")
         return pd.DataFrame()
@@ -37,7 +44,6 @@ def coerce_numeric(df: pd.DataFrame, cols: list[str]) -> None:
 
 def run_job(cmd: list[str]) -> None:
     env = os.environ.copy()
-    # pass Space-Track creds to subprocesses
     if "spacetrack" in st.secrets:
         u = st.secrets["spacetrack"].get("username", "")
         p = st.secrets["spacetrack"].get("password", "")
@@ -64,10 +70,10 @@ def ensure_data() -> None:
         if not p.exists() or p.stat().st_size == 0:
             with st.spinner(f"Fetching {p.name} …"):
                 run_job(cmd)
-    # conjunctions depend on TLEs
+
     if Path("data/tle_small.csv").exists() and Path("data/tle_small.csv").stat().st_size > 0:
-        p = Path("data/conjunctions.csv")
-        if not p.exists() or p.stat().st_size == 0:
+        conj = Path("data/conjunctions.csv")
+        if not conj.exists() or conj.stat().st_size == 0:
             with st.spinner("Propagating conjunctions (sgp4) …"):
                 run_job([
                     "scripts/conjunctions.py",
@@ -83,17 +89,17 @@ with st.sidebar:
     st.header("Controls")
     if st.button("🔄 Refresh all data now"):
         steps = [
-            ("Kp latest", ["scripts/fetch_space_weather.py"]),
-            ("Kp forecast", ["scripts/forecast_kp.py"]),
-            ("Asteroids", ["scripts/fetch_asteroids.py"]),
-            ("Commodities", ["scripts/fetch_commodities.py"]),
-            ("Asteroid scores", ["scripts/compute_asteroid_profit.py"]),
-            ("Launch weather", ["scripts/fetch_launch_weather.py"]),
-            ("Upcoming launches", ["scripts/fetch_launches.py"]),
-            ("Launch history", ["scripts/fetch_launches_history.py"]),
-            ("TLEs", ["scripts/fetch_tle.py"]),
+            ["scripts/fetch_space_weather.py"],
+            ["scripts/forecast_kp.py"],
+            ["scripts/fetch_asteroids.py"],
+            ["scripts/fetch_commodities.py"],
+            ["scripts/compute_asteroid_profit.py"],
+            ["scripts/fetch_launch_weather.py"],
+            ["scripts/fetch_launches.py"],
+            ["scripts/fetch_launches_history.py"],
+            ["scripts/fetch_tle.py"],
         ]
-        for _, cmd in steps:
+        for cmd in steps:
             run_job(cmd)
         if Path("data/tle_small.csv").exists() and Path("data/tle_small.csv").stat().st_size > 0:
             run_job([
@@ -131,7 +137,6 @@ st.markdown("""
 5. 📡 Space Tracker — Missions, reliability, delays
 """)
 
-# quick links
 cols = st.columns(5)
 pages = [
     ("pages/1_Weather.py", "🌞 Space Weather"),
@@ -174,20 +179,24 @@ st.divider()
 # ───────────── previews ─────────────
 c1, c2, c3 = st.columns(3)
 
-# Kp forecast
+# Kp forecast (robust time detection)
 with c1:
     st.subheader("Kp forecast (48h)")
-    kpf = read_csv_safe("data/kp_forecast.csv", parse_dates=["time"])
+    kpf = read_csv_safe("data/kp_forecast.csv")
     if not kpf.empty:
-        kp_col = pick_col(kpf, ["kp", "Kp"])
-        if kp_col:
+        time_col = next((c for c in ["time","timestamp","datetime","ts"] if c in kpf.columns), None)
+        kp_col   = next((c for c in ["kp","Kp"] if c in kpf.columns), None)
+        if time_col and kp_col:
+            kpf[time_col] = pd.to_datetime(kpf[time_col], errors="coerce", utc=True)
+            kpf = kpf.dropna(subset=[time_col]).sort_values(time_col)
             chart = alt.Chart(kpf.tail(48)).mark_line().encode(
-                x="time:T", y=alt.Y(f"{kp_col}:Q", title="Kp"),
-                tooltip=["time:T", alt.Tooltip(f"{kp_col}:Q", title="Kp")]
+                x=alt.X(f"{time_col}:T", title="Time"),
+                y=alt.Y(f"{kp_col}:Q", title="Kp"),
+                tooltip=[time_col, kp_col]
             ).properties(height=200)
             st.altair_chart(chart, use_container_width=True)
         else:
-            st.info("Forecast present but missing Kp column.")
+            st.info("Forecast present but missing time/Kp columns.")
     else:
         st.info("No forecast available yet.")
 
@@ -200,14 +209,11 @@ with c2:
         dv_col     = pick_col(ast, ["dv_kms", "dv_km_s", "delta_v_kms", "delta_v", "dv"])
         value_col  = pick_col(ast, ["est_value_usd", "estimated_value_usd", "value_usd", "usd_value", "est_value"])
         diam_col   = pick_col(ast, ["diameter_km", "diameter", "diam_km"])
-
-        # coerce numerics safely
         coerce_numeric(ast, [profit_col, dv_col, value_col, diam_col])
 
         if name_col and profit_col:
             cols_to_keep = [c for c in [name_col, profit_col, dv_col, value_col] if c]
             top = ast[cols_to_keep].dropna(subset=[profit_col]).sort_values(profit_col, ascending=False).head(15)
-
             if not top.empty:
                 tooltip_cols = [name_col, profit_col] + [c for c in [dv_col, value_col] if c]
                 chart = alt.Chart(top).mark_bar().encode(
@@ -227,9 +233,14 @@ with c2:
 # Launch preview
 with c3:
     st.subheader("Next launches (soon)")
-    if not ll2.empty and "window_start" in ll2.columns:
-        cols_show = [c for c in ["name", "provider", "window_start", "pad"] if c in ll2.columns]
-        st.dataframe(ll2.sort_values("window_start").head(10)[cols_show], use_container_width=True, height=220)
+    if not ll2.empty:
+        date_col = next((c for c in ["window_start","net","t0","date"] if c in ll2.columns), None)
+        if date_col:
+            ll2[date_col] = pd.to_datetime(ll2[date_col], errors="coerce", utc=True)
+            cols_show = [c for c in ["name", "provider", date_col, "pad"] if c in ll2.columns]
+            st.dataframe(ll2.sort_values(date_col).head(10)[cols_show], use_container_width=True, height=220)
+        else:
+            st.info("Launch data missing a date column.")
     else:
         st.info("No launch data yet.")
 
