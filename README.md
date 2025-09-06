@@ -1,6 +1,6 @@
 # 🌌 Space Intelligence Super App
 
-![Banner](space-intel-app\docs\Banner.png)
+![Banner](docs\Banner.png)
 
 > **AI-powered dashboard for space intelligence** — live space weather, asteroid mining economics, satellite conjunction alerts, launch feasibility, and mission tracking.  
 > Built with **Python + Streamlit**, auto-refreshed nightly via **GitHub Actions**.
@@ -56,15 +56,15 @@ All data lives in `/data` and is refreshed nightly by [GitHub Actions](.github/w
 
 Home dashboard:
 
-![Home](space-intel-app\docs\Home.png)
+![Home](docs\Home.png)
 
 Asteroid Mining:
 
-![Asteroids](space-intel-app\docs\mining.png)
+![Asteroids](docs\mining.png)
 
 Conjunctions:
 
-![Conjunctions](space-intel-app\docs\conjuction.png)
+![Conjunctions](docs\conjuction.png)
 
 ---
 
