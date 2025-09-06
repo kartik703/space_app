@@ -1,4 +1,4 @@
 [server]
 headless = true
-fileWatcherType = "none"   # disable inotify watchers in cloud
+fileWatcherType = "none"
 runOnSave = false
