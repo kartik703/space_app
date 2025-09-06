@@ -7,42 +7,37 @@ import pandas as pd
 
 st.set_page_config(page_title="Space Intelligence Super App", page_icon="🛰️", layout="wide")
 
-# ───────────── helpers ─────────────
-def read_csv_safe(path: str, parse_dates=None) -> pd.DataFrame:
-    """Read CSV. If parse_dates provided but missing, fall back gracefully."""
+# ---------- helpers ----------
+def read_csv_safe(path: str) -> pd.DataFrame:
     p = Path(path)
     if not p.exists() or p.stat().st_size == 0:
         return pd.DataFrame()
     try:
-        df = pd.read_csv(p)
-        # convert only columns that exist
-        if parse_dates:
-            for c in parse_dates:
-                if c in df.columns:
-                    df[c] = pd.to_datetime(df[c], errors="coerce", utc=True)
-        return df
+        return pd.read_csv(p)
     except Exception as e:
         st.warning(f"Could not read {path}: {e}")
         return pd.DataFrame()
 
-def pick_name_col(df: pd.DataFrame) -> str | None:
-    for c in ["object", "full_name", "designation", "name", "Object", "OBJECT"]:
+def to_datetime_if_present(df: pd.DataFrame, cols: list[str]):
+    for c in cols:
         if c in df.columns:
-            return c
-    return None
+            df[c] = pd.to_datetime(df[c], errors="coerce", utc=True)
+    return df
 
-def pick_col(df: pd.DataFrame, candidates: list[str]) -> str | None:
+def pick_name_col(df: pd.DataFrame):
+    for c in ["object","full_name","designation","name","Object","OBJECT"]:
+        if c in df.columns: return c
+
+def pick_col(df: pd.DataFrame, candidates: list[str]):
     for c in candidates:
-        if c in df.columns:
-            return c
-    return None
+        if c in df.columns: return c
 
-def coerce_numeric(df: pd.DataFrame, cols: list[str]) -> None:
-    for col in cols:
-        if col and col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+def coerce_numeric(df: pd.DataFrame, cols: list[str]):
+    for c in cols:
+        if c and c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
 
-def run_job(cmd: list[str]) -> None:
+def run_job(cmd: list[str]):
     env = os.environ.copy()
     if "spacetrack" in st.secrets:
         u = st.secrets["spacetrack"].get("username", "")
@@ -52,9 +47,9 @@ def run_job(cmd: list[str]) -> None:
             env["SPACETRACK_PASSWORD"] = p
     subprocess.run([sys.executable, *cmd], check=False, env=env)
 
-def ensure_data() -> None:
+def ensure_data():
     Path("data").mkdir(parents=True, exist_ok=True)
-    base_jobs = [
+    jobs = [
         ("data/kp_latest.csv",        ["scripts/fetch_space_weather.py"]),
         ("data/kp_forecast.csv",      ["scripts/forecast_kp.py"]),
         ("data/asteroids.csv",        ["scripts/fetch_asteroids.py"]),
@@ -65,7 +60,7 @@ def ensure_data() -> None:
         ("data/launches_history.csv", ["scripts/fetch_launches_history.py"]),
         ("data/tle_small.csv",        ["scripts/fetch_tle.py"]),
     ]
-    for target, cmd in base_jobs:
+    for target, cmd in jobs:
         p = Path(target)
         if not p.exists() or p.stat().st_size == 0:
             with st.spinner(f"Fetching {p.name} …"):
@@ -77,18 +72,18 @@ def ensure_data() -> None:
             with st.spinner("Propagating conjunctions (sgp4) …"):
                 run_job([
                     "scripts/conjunctions.py",
-                    "--only_leo", "--threshold_km", "20",
-                    "--horizon_h", "24", "--step_s", "60",
-                    "--max_sats", "120", "--top_n", "200",
+                    "--only_leo","--threshold_km","20",
+                    "--horizon_h","24","--step_s","60",
+                    "--max_sats","120","--top_n","200",
                 ])
     else:
-        st.info("TLEs not available yet; conjunctions will generate automatically after TLE fetch succeeds.")
+        st.info("TLEs not available yet; conjunctions will run once TLEs are fetched.")
 
-# ───────────── sidebar ─────────────
+# ---------- sidebar ----------
 with st.sidebar:
     st.header("Controls")
     if st.button("🔄 Refresh all data now"):
-        steps = [
+        for cmd in [
             ["scripts/fetch_space_weather.py"],
             ["scripts/forecast_kp.py"],
             ["scripts/fetch_asteroids.py"],
@@ -98,17 +93,16 @@ with st.sidebar:
             ["scripts/fetch_launches.py"],
             ["scripts/fetch_launches_history.py"],
             ["scripts/fetch_tle.py"],
-        ]
-        for cmd in steps:
+        ]:
             run_job(cmd)
         if Path("data/tle_small.csv").exists() and Path("data/tle_small.csv").stat().st_size > 0:
             run_job([
                 "scripts/conjunctions.py",
-                "--only_leo", "--threshold_km", "20",
-                "--horizon_h", "24", "--step_s", "60",
-                "--max_sats", "120", "--top_n", "200",
+                "--only_leo","--threshold_km","20",
+                "--horizon_h","24","--step_s","60",
+                "--max_sats","120","--top_n","200",
             ])
-        st.success("Refreshed. Reload the page to see updates.")
+        st.success("Refreshed. Reload to see updates.")
     st.markdown("---")
     st.page_link("pages/1_Weather.py", label="🌞 Space Weather")
     st.page_link("pages/2_Asteroid_Mining.py", label="🪨 Asteroid Mining")
@@ -116,10 +110,9 @@ with st.sidebar:
     st.page_link("pages/4_Launch_Optimizer.py", label="🚀 Launch Window")
     st.page_link("pages/5_Space_Tracker.py", label="📡 Space Tracker")
 
-# first-run populate
 ensure_data()
 
-# ───────────── hero ─────────────
+# ---------- hero ----------
 st.markdown("""
 <div style="display:flex;align-items:center;gap:12px;">
   <img src="https://em-content.zobj.net/source/microsoft-teams/363/satellite_1f6f0-fe0f.png" width="36"/>
@@ -138,61 +131,57 @@ st.markdown("""
 """)
 
 cols = st.columns(5)
-pages = [
-    ("pages/1_Weather.py", "🌞 Space Weather"),
-    ("pages/2_Asteroid_Mining.py", "🪨 Asteroid Mining"),
-    ("pages/3_Collisions.py", "🛰️ Conjunctions"),
-    ("pages/4_Launch_Optimizer.py", "🚀 Launch Window"),
-    ("pages/5_Space_Tracker.py", "📡 Space Tracker"),
-]
-for c, (p, label) in zip(cols, pages):
+for c, (p, label) in zip(cols, [
+    ("pages/1_Weather.py","🌞 Space Weather"),
+    ("pages/2_Asteroid_Mining.py","🪨 Asteroid Mining"),
+    ("pages/3_Collisions.py","🛰️ Conjunctions"),
+    ("pages/4_Launch_Optimizer.py","🚀 Launch Window"),
+    ("pages/5_Space_Tracker.py","📡 Space Tracker"),
+]):
     with c:
-        try:
-            st.page_link(p, label=label, icon="➡️")
-        except Exception:
-            st.markdown(f"- [{label}]({p})")
+        try: st.page_link(p, label=label, icon="➡️")
+        except: st.markdown(f"- [{label}]({p})")
 
 st.divider()
 
-# ───────────── KPIs ─────────────
-kcol1, kcol2, kcol3, kcol4 = st.columns(4)
+# ---------- KPIs ----------
+k1,k2,k3,k4 = st.columns(4)
 
-kp = read_csv_safe("data/kp_latest.csv", parse_dates=["time_tag"])
+kp = read_csv_safe("data/kp_latest.csv")
+to_datetime_if_present(kp, ["time_tag","time"])
 kpv = float(kp["Kp"].tail(1).values[0]) if not kp.empty and "Kp" in kp.columns else None
-with kcol1:
-    st.metric("Current Kp", f"{kpv:.1f}" if kpv is not None else "—", help="NOAA planetary K-index")
+with k1: st.metric("Current Kp", f"{kpv:.1f}" if kpv is not None else "—")
 
 ast = read_csv_safe("data/asteroids_scored.csv")
-with kcol2:
-    st.metric("Asteroids scored", f"{len(ast):,}" if not ast.empty else "—")
+with k2: st.metric("Asteroids scored", f"{len(ast):,}" if not ast.empty else "—")
 
-conj = read_csv_safe("data/conjunctions.csv", parse_dates=["time"])
-with kcol3:
-    st.metric("Conjunction rows", f"{len(conj):,}" if not conj.empty else "0")
+conj = read_csv_safe("data/conjunctions.csv")
+to_datetime_if_present(conj, ["time"])
+with k3: st.metric("Conjunction rows", f"{len(conj):,}" if not conj.empty else "0")
 
-ll2 = read_csv_safe("data/launches.csv", parse_dates=["window_start"])
-with kcol4:
-    st.metric("Upcoming launches", f"{len(ll2):,}" if not ll2.empty else "—")
+ll2 = read_csv_safe("data/launches.csv")
+to_datetime_if_present(ll2, ["window_start","net","t0","date"])
+with k4: st.metric("Upcoming launches", f"{len(ll2):,}" if not ll2.empty else "—")
 
 st.divider()
 
-# ───────────── previews ─────────────
-c1, c2, c3 = st.columns(3)
+# ---------- previews ----------
+c1,c2,c3 = st.columns(3)
 
-# Kp forecast (robust time detection)
+# Kp forecast (detect time/Kp columns)
 with c1:
     st.subheader("Kp forecast (48h)")
     kpf = read_csv_safe("data/kp_forecast.csv")
     if not kpf.empty:
-        time_col = next((c for c in ["time","timestamp","datetime","ts"] if c in kpf.columns), None)
-        kp_col   = next((c for c in ["kp","Kp"] if c in kpf.columns), None)
-        if time_col and kp_col:
-            kpf[time_col] = pd.to_datetime(kpf[time_col], errors="coerce", utc=True)
-            kpf = kpf.dropna(subset=[time_col]).sort_values(time_col)
-            chart = alt.Chart(kpf.tail(48)).mark_line().encode(
-                x=alt.X(f"{time_col}:T", title="Time"),
-                y=alt.Y(f"{kp_col}:Q", title="Kp"),
-                tooltip=[time_col, kp_col]
+        tcol = next((c for c in ["time","timestamp","datetime","ts","time_tag"] if c in kpf.columns), None)
+        kcol = next((c for c in ["kp","Kp"] if c in kpf.columns), None)
+        if tcol and kcol:
+            kpf[tcol] = pd.to_datetime(kpf[tcol], errors="coerce", utc=True)
+            kpf = kpf.dropna(subset=[tcol]).sort_values(tcol).tail(48)
+            chart = alt.Chart(kpf).mark_line().encode(
+                x=alt.X(f"{tcol}:T", title="Time"),
+                y=alt.Y(f"{kcol}:Q", title="Kp"),
+                tooltip=[tcol, kcol],
             ).properties(height=200)
             st.altair_chart(chart, use_container_width=True)
         else:
@@ -200,33 +189,32 @@ with c1:
     else:
         st.info("No forecast available yet.")
 
-# Asteroid profitability (robust field detection)
+# Asteroid profitability
 with c2:
     st.subheader("Top asteroid profitability")
     if not ast.empty:
         name_col   = pick_name_col(ast)
-        profit_col = pick_col(ast, ["profit_index", "profit", "score"])
-        dv_col     = pick_col(ast, ["dv_kms", "dv_km_s", "delta_v_kms", "delta_v", "dv"])
-        value_col  = pick_col(ast, ["est_value_usd", "estimated_value_usd", "value_usd", "usd_value", "est_value"])
-        diam_col   = pick_col(ast, ["diameter_km", "diameter", "diam_km"])
-        coerce_numeric(ast, [profit_col, dv_col, value_col, diam_col])
-
+        profit_col = pick_col(ast, ["profit_index","profit","score"])
+        dv_col     = pick_col(ast, ["dv_kms","dv_km_s","delta_v_kms","delta_v","dv"])
+        value_col  = pick_col(ast, ["est_value_usd","estimated_value_usd","value_usd","usd_value","est_value"])
+        diam_col   = pick_col(ast, ["diameter_km","diameter","diam_km"])
+        coerce_numeric(ast, [profit_col,dv_col,value_col,diam_col])
         if name_col and profit_col:
-            cols_to_keep = [c for c in [name_col, profit_col, dv_col, value_col] if c]
-            top = ast[cols_to_keep].dropna(subset=[profit_col]).sort_values(profit_col, ascending=False).head(15)
+            cols_keep = [c for c in [name_col,profit_col,dv_col,value_col] if c]
+            top = (ast[cols_keep].dropna(subset=[profit_col])
+                              .sort_values(profit_col, ascending=False).head(15))
             if not top.empty:
-                tooltip_cols = [name_col, profit_col] + [c for c in [dv_col, value_col] if c]
+                tooltips = [name_col,profit_col] + [c for c in [dv_col,value_col] if c]
                 chart = alt.Chart(top).mark_bar().encode(
                     x=alt.X(f"{profit_col}:Q", title="Profit index"),
                     y=alt.Y(f"{name_col}:N", sort="-x", title="Asteroid"),
-                    tooltip=tooltip_cols
+                    tooltip=tooltips,
                 ).properties(height=200)
                 st.altair_chart(chart, use_container_width=True)
             else:
-                st.info("No ranked asteroids available yet (profit field empty after filtering).")
+                st.info("No ranked asteroids after filtering.")
         else:
-            missing = "name column" if not name_col else "profit field"
-            st.info(f"Asteroid table missing required field: {missing}.")
+            st.info("Asteroid table missing name or profit field.")
     else:
         st.info("No asteroid scores yet.")
 
@@ -234,19 +222,19 @@ with c2:
 with c3:
     st.subheader("Next launches (soon)")
     if not ll2.empty:
-        date_col = next((c for c in ["window_start","net","t0","date"] if c in ll2.columns), None)
-        if date_col:
-            ll2[date_col] = pd.to_datetime(ll2[date_col], errors="coerce", utc=True)
-            cols_show = [c for c in ["name", "provider", date_col, "pad"] if c in ll2.columns]
-            st.dataframe(ll2.sort_values(date_col).head(10)[cols_show], use_container_width=True, height=220)
+        dcol = next((c for c in ["window_start","net","t0","date"] if c in ll2.columns), None)
+        if dcol:
+            ll2[dcol] = pd.to_datetime(ll2[dcol], errors="coerce", utc=True)
+            cols_show = [c for c in ["name","provider",dcol,"pad"] if c in ll2.columns]
+            st.dataframe(ll2.sort_values(dcol).head(10)[cols_show], use_container_width=True, height=220)
         else:
-            st.info("Launch data missing a date column.")
+            st.info("Launch data missing a datetime column.")
     else:
         st.info("No launch data yet.")
 
 st.divider()
 
-# ───────────── snapshots ─────────────
+# ---------- snapshots ----------
 st.subheader("Data snapshots")
 def file_status(p: Path) -> str:
     if p.exists() and p.stat().st_size > 0:
@@ -255,9 +243,9 @@ def file_status(p: Path) -> str:
     return "❌"
 
 for name in [
-    "kp_latest.csv", "kp_forecast.csv", "asteroids.csv", "commodities.csv",
-    "asteroids_scored.csv", "tle_small.csv", "conjunctions.csv",
-    "launch_weather.csv", "launches.csv", "launches_history.csv",
+    "kp_latest.csv","kp_forecast.csv","asteroids.csv","commodities.csv",
+    "asteroids_scored.csv","tle_small.csv","conjunctions.csv",
+    "launch_weather.csv","launches.csv","launches_history.csv",
 ]:
-    p = Path("data") / name
+    p = Path("data")/name
     st.write(f"- `{name}`: {file_status(p)}")
