@@ -1,6 +1,4 @@
 window_start,name,provider,vehicle,pad,location,mission
-2025-09-06 16:26:00+00:00,Long March 6A | Yaogan 40 Group 03,China Aerospace Science and Technology Corporation,Long March 6A,Launch Complex 9A,"Taiyuan Satellite Launch Center, People's Republic of China",Yaogan 40 Group 03
-2025-09-06 15:42:00+00:00,Falcon 9 Block 5 | Starlink Group 17-9,SpaceX,Falcon 9 Block 5,Space Launch Complex 4E,"Vandenberg SFB, CA, USA",Starlink Group 17-9
 2025-09-08 19:39:00+00:00,Smart Dragon 3 | Unknown Payload,China Rocket Co. Ltd.,Smart Dragon 3,Oriental Spaceport mobile launch ship,Sea Launch,Unknown Payload
 2025-09-09 00:02:00+00:00,Falcon 9 Block 5 | Nusantara Lima,SpaceX,Falcon 9 Block 5,Space Launch Complex 40,"Cape Canaveral SFS, FL, USA",Nusantara Lima
 2025-09-09 01:52:00+00:00,Long March 7A | Unknown Payload,China Aerospace Science and Technology Corporation,Long March 7A,201,"Wenchang Space Launch Site, People's Republic of China",Unknown Payload
@@ -8,7 +6,7 @@ window_start,name,provider,vehicle,pad,location,mission
 2025-09-11 15:54:06+00:00,Soyuz 2.1a | Progress MS-32 (93P),Russian Federal Space Agency (ROSCOSMOS),Soyuz 2.1a,31/6,"Baikonur Cosmodrome, Republic of Kazakhstan",Progress MS-32 (93P)
 2025-09-13 02:30:00+00:00,Soyuz 2.1b/Fregat | Glonass-K1 No. 18,Russian Space Forces,Soyuz 2.1b Fregat,Unknown Pad,"Plesetsk Cosmodrome, Russian Federation",Glonass-K1 No. 18
 2025-09-13 15:41:00+00:00,Falcon 9 Block 5 | Starlink Group 17-10,SpaceX,Falcon 9 Block 5,Space Launch Complex 4E,"Vandenberg SFB, CA, USA",Starlink Group 17-10
-2025-09-14 22:11:00+00:00,Falcon 9 Block 5 | Cygnus CRS-2 NG-23,SpaceX,Falcon 9 Block 5,Space Launch Complex 40,"Cape Canaveral SFS, FL, USA",Cygnus CRS-2 NG-23
+2025-09-14 22:11:49+00:00,Falcon 9 Block 5 | Cygnus CRS-2 NG-23,SpaceX,Falcon 9 Block 5,Space Launch Complex 40,"Cape Canaveral SFS, FL, USA",Cygnus CRS-2 NG-23
 2025-09-23 11:32:00+00:00,Falcon 9 Block 5 | IMAP & others,SpaceX,Falcon 9 Block 5,Launch Complex 39A,"Kennedy Space Center, FL, USA",IMAP & others
 2025-09-25 00:00:00+00:00,Atlas V 551 | Project Kuiper (KA-03),United Launch Alliance,Atlas V 551,Space Launch Complex 41,"Cape Canaveral SFS, FL, USA",Project Kuiper (KA-03)
 2025-09-29 00:00:00+00:00,New Glenn | EscaPADE,Blue Origin,New Glenn,Launch Complex 36A,"Cape Canaveral SFS, FL, USA",EscaPADE
@@ -49,3 +47,5 @@ window_start,name,provider,vehicle,pad,location,mission
 2025-12-31 00:00:00+00:00,PSLV | TDS-01,Indian Space Research Organization,PSLV,Satish Dhawan Space Centre First Launch Pad,"Satish Dhawan Space Centre, India",TDS-01
 2025-12-31 00:00:00+00:00,RFA One | Maiden Flight,Rocket Factory Augsburg,RFA One,Launch Pad Fredo,SaxaVord Spaceport,Maiden Flight
 2025-12-31 00:00:00+00:00,Falcon 9 Block 5 | Rivada 1,SpaceX,Falcon 9 Block 5,Space Launch Complex 4E,"Vandenberg SFB, CA, USA",Rivada 1
+2025-12-31 00:00:00+00:00,Falcon 9 Block 5 | Rivada 2,SpaceX,Falcon 9 Block 5,Space Launch Complex 4E,"Vandenberg SFB, CA, USA",Rivada 2
+2025-12-31 00:00:00+00:00,Falcon 9 Block 5 | Rivada 3,SpaceX,Falcon 9 Block 5,Space Launch Complex 4E,"Vandenberg SFB, CA, USA",Rivada 3
