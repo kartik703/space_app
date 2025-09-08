@@ -61,24 +61,53 @@ if choice == "🌞 Space Weather":
         st.info("No forecast data available.")
 
 # -----------------------------
-# ASTEROID MINING
-# -----------------------------
-elif choice == "🪨 Asteroid Mining":
-    st.subheader("🪨 Asteroid Profitability Leaderboard")
-    ast = read_csv_safe(DATA / "asteroids_scored.csv")
+# -------------------------
+# 🚀 Asteroid Mining
+# -------------------------
+st.subheader("🪨 Asteroid Mining Opportunities")
 
-    if not ast.empty and "profit_index" in ast.columns:
-        top = ast.sort_values("profit_index", ascending=False).head(10)
-        st.dataframe(top[["object","profit_index","dv_kms","est_value_usd"]])
+ast = read_csv_safe("data/asteroids_scored.csv")
 
-        chart = alt.Chart(top).mark_bar(color="orange").encode(
-            x="profit_index:Q",
-            y=alt.Y("object:N", sort="-x"),
-            tooltip=["profit_index","dv_kms","est_value_usd"]
-        ).properties(title="Top 10 Asteroids")
-        st.altair_chart(chart, use_container_width=True)
+if not ast.empty and "profit_index" in ast.columns:
+    top = ast.sort_values("profit_index", ascending=False).head(10)
+
+    # Show available columns for debugging
+    st.caption(f"Available columns: {list(ast.columns)}")
+
+    # Define possible column mappings
+    column_aliases = {
+        "object": ["object", "name", "id"],
+        "dv_kms": ["dv_kms", "delta_v", "delta_v_kms"],
+        "est_value_usd": ["est_value_usd", "value_usd", "est_value"],
+        "profit_index": ["profit_index"]
+    }
+
+    # Build safe list of columns that actually exist
+    selected_cols = []
+    for canonical, aliases in column_aliases.items():
+        for alias in aliases:
+            if alias in top.columns:
+                selected_cols.append(alias)
+                break
+
+    if selected_cols:
+        st.dataframe(top[selected_cols])
     else:
-        st.info("No asteroid scores available yet.")
+        st.warning("⚠️ Could not find expected asteroid mining columns, showing raw data instead.")
+        st.dataframe(top.head(10))
+
+    # Chart: always plot profit_index
+    if "profit_index" in top.columns:
+        import altair as alt
+        chart = alt.Chart(top.reset_index()).mark_bar(color="orange").encode(
+            x="profit_index:Q",
+            y=alt.Y(selected_cols[0] if selected_cols else top.columns[0], sort="-x"),
+            tooltip=selected_cols
+        ).properties(width=700, height=400, title="Top 10 Asteroid Mining Opportunities")
+        st.altair_chart(chart, use_container_width=True)
+else:
+    st.info("No asteroid mining dataset available. Run the pipeline to generate `asteroids_scored.csv`.")
+
 
 # -----------------------------
 # ORBITAL CONGESTION
