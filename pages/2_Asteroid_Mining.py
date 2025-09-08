@@ -3,9 +3,12 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 from pathlib import Path
+from utils import set_background, read_csv_safe, badge, human_ts
 
-st.set_page_config(page_title="Asteroid Mining", page_icon="🪨", layout="wide")
-st.title("🪨 Asteroid Mining — Profitability Explorer")
+# Always set video background
+set_background("docs/bg.mp4")
+
+st.title(" Asteroid Mining — Profitability Explorer")
 
 def read_csv_safe(path: str, parse_dates=None) -> pd.DataFrame:
     p = Path(path)
@@ -98,3 +101,4 @@ st.download_button(
     "asteroids_filtered.csv",
     "text/csv",
 )
+

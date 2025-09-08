@@ -1,21 +1,28 @@
-import subprocess, sys, pathlib
+# scripts/run_all.py
+import subprocess, sys
+from datetime import datetime
 
-def run(cmd):
-    print(">>", " ".join(cmd)); subprocess.check_call(cmd)
+steps = [
+    "scripts/fetch_tle.py",
+    "scripts/propagate_tle.py",
+    "scripts/congestion_map.py",
+    "scripts/fetch_kp.py",              # <-- NEW: Space Weather data
+    "scripts/compute_asteroid_profit.py",
+    "scripts/launch_success_model.py",
+]
+
+def run_step(script):
+    print(f"[{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}] ▶️ Running {script} ...")
+    try:
+        subprocess.check_call([sys.executable, script])
+        print(f"[{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}] ✅ Finished {script}")
+    except subprocess.CalledProcessError as e:
+        print(f"[{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}] ⚠️ Skipped {script}: {e}")
+
+def main():
+    for step in steps:
+        run_step(step)
+    print("✅ All pipeline steps finished. Data refreshed in /data/")
 
 if __name__ == "__main__":
-    pathlib.Path("data").mkdir(exist_ok=True, parents=True)
-    run([sys.executable, "scripts/fetch_space_weather.py"])
-    run([sys.executable, "scripts/forecast_kp.py"])
-
-    run([sys.executable, "scripts/fetch_asteroids.py"])
-    run([sys.executable, "scripts/fetch_commodities.py"])
-    run([sys.executable, "scripts/compute_asteroid_profit.py"])
-
-    run([sys.executable, "scripts/fetch_tle.py"])
-    run([sys.executable, "scripts/conjunctions.py"])
-
-    run([sys.executable, "scripts/fetch_launch_weather.py"])
-    run([sys.executable, "scripts/fetch_launches.py"])
-    run([sys.executable, "scripts/fetch_launches_history.py"])
-    print("All data refreshed.")
+    main()

@@ -1,7 +1,10 @@
 import streamlit as st, pandas as pd, pathlib, subprocess, sys, datetime as dt, altair as alt
 from utils import read_csv_safe
+from utils import set_background, read_csv_safe, badge, human_ts
 
-st.set_page_config(page_title="Conjunctions", page_icon="🛰️", layout="wide")
+# Always set video background
+set_background("docs/bg.mp4")
+
 st.title("🛰 Conjunction Candidates (sgp4)")
 
 p_tle = pathlib.Path("data/tle_small.csv")
@@ -48,3 +51,4 @@ else:
     ).properties(height=200)
     st.altair_chart(hist, use_container_width=True)
     st.download_button("⬇️ Download CSV", df.to_csv(index=False).encode(), "conjunctions.csv", "text/csv")
+

@@ -1,6 +1,10 @@
 import streamlit as st, pandas as pd, numpy as np, pathlib, altair as alt
+from utils import set_background, read_csv_safe, badge, human_ts
 
-st.set_page_config(page_title="Launch Window", page_icon="🚀", layout="wide")
+# Always set video background
+set_background("docs/bg.mp4")
+
+
 st.title("🚀 Launch Window — Weather + Target Orbit Feasibility")
 
 site_lat = 28.5  # KSC
@@ -38,3 +42,4 @@ if p.exists():
     st.altair_chart(chart, use_container_width=True)
 else:
     st.warning("No launch_weather.csv yet.")
+

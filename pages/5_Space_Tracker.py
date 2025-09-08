@@ -1,8 +1,12 @@
 import streamlit as st
 import pandas as pd
 from pathlib import Path
+from utils import set_background, read_csv_safe, badge, human_ts
 
-st.set_page_config(page_title="Space Tracker", page_icon="📡", layout="wide")
+# Always set video background
+set_background("docs/bg.mp4")
+
+
 st.title("📡 Space Tracker — Upcoming & History")
 
 def read_csv_safe(path: str) -> pd.DataFrame:
@@ -62,3 +66,5 @@ if not hist.empty:
     st.dataframe(dfh[cols_h].head(200), use_container_width=True, height=300)
 else:
     st.info("No historical dataset yet.")
+
+
