@@ -1,4 +1,3 @@
-# app.py
 import streamlit as st
 import altair as alt
 from pathlib import Path
@@ -33,7 +32,7 @@ choice = st.sidebar.radio(
 )
 
 # -----------------------------
-# SPACE WEATHER
+# 🌞 SPACE WEATHER
 # -----------------------------
 if choice == "🌞 Space Weather":
     st.subheader("🌞 Space Weather (NOAA + AI Forecast)")
@@ -61,56 +60,53 @@ if choice == "🌞 Space Weather":
         st.info("No forecast data available.")
 
 # -----------------------------
-# -------------------------
-# 🚀 Asteroid Mining
-# -------------------------
-st.subheader("🪨 Asteroid Mining Opportunities")
+# 🪨 ASTEROID MINING
+# -----------------------------
+elif choice == "🪨 Asteroid Mining":
+    st.subheader("🪨 Asteroid Mining Opportunities")
+    ast = read_csv_safe(DATA / "asteroids_scored.csv")
 
-ast = read_csv_safe("data/asteroids_scored.csv")
+    if not ast.empty and "profit_index" in ast.columns:
+        top = ast.sort_values("profit_index", ascending=False).head(10)
 
-if not ast.empty and "profit_index" in ast.columns:
-    top = ast.sort_values("profit_index", ascending=False).head(10)
+        # Debugging: show columns
+        st.caption(f"Available columns: {list(ast.columns)}")
 
-    # Show available columns for debugging
-    st.caption(f"Available columns: {list(ast.columns)}")
+        # Column alias mapping
+        column_aliases = {
+            "object": ["object", "name", "id"],
+            "dv_kms": ["dv_kms", "delta_v", "delta_v_kms"],
+            "est_value_usd": ["est_value_usd", "value_usd", "est_value"],
+            "profit_index": ["profit_index"]
+        }
 
-    # Define possible column mappings
-    column_aliases = {
-        "object": ["object", "name", "id"],
-        "dv_kms": ["dv_kms", "delta_v", "delta_v_kms"],
-        "est_value_usd": ["est_value_usd", "value_usd", "est_value"],
-        "profit_index": ["profit_index"]
-    }
+        # Pick available columns
+        selected_cols = []
+        for canonical, aliases in column_aliases.items():
+            for alias in aliases:
+                if alias in top.columns:
+                    selected_cols.append(alias)
+                    break
 
-    # Build safe list of columns that actually exist
-    selected_cols = []
-    for canonical, aliases in column_aliases.items():
-        for alias in aliases:
-            if alias in top.columns:
-                selected_cols.append(alias)
-                break
+        if selected_cols:
+            st.dataframe(top[selected_cols])
+        else:
+            st.warning("⚠️ Could not find expected asteroid mining columns, showing raw data instead.")
+            st.dataframe(top.head(10))
 
-    if selected_cols:
-        st.dataframe(top[selected_cols])
+        # Chart: always plot profit_index
+        if "profit_index" in top.columns:
+            chart = alt.Chart(top.reset_index()).mark_bar(color="orange").encode(
+                x="profit_index:Q",
+                y=alt.Y(selected_cols[0] if selected_cols else top.columns[0], sort="-x"),
+                tooltip=selected_cols
+            ).properties(width=700, height=400, title="Top 10 Asteroid Mining Opportunities")
+            st.altair_chart(chart, use_container_width=True)
     else:
-        st.warning("⚠️ Could not find expected asteroid mining columns, showing raw data instead.")
-        st.dataframe(top.head(10))
-
-    # Chart: always plot profit_index
-    if "profit_index" in top.columns:
-        import altair as alt
-        chart = alt.Chart(top.reset_index()).mark_bar(color="orange").encode(
-            x="profit_index:Q",
-            y=alt.Y(selected_cols[0] if selected_cols else top.columns[0], sort="-x"),
-            tooltip=selected_cols
-        ).properties(width=700, height=400, title="Top 10 Asteroid Mining Opportunities")
-        st.altair_chart(chart, use_container_width=True)
-else:
-    st.info("No asteroid mining dataset available. Run the pipeline to generate `asteroids_scored.csv`.")
-
+        st.info("No asteroid mining dataset available. Run the pipeline to generate `asteroids_scored.csv`.")
 
 # -----------------------------
-# ORBITAL CONGESTION
+# 🛰 ORBITAL CONGESTION
 # -----------------------------
 elif choice == "🛰 Orbital Congestion":
     st.subheader("🛰 Orbital Congestion Heatmap")
@@ -128,7 +124,7 @@ elif choice == "🛰 Orbital Congestion":
         st.warning("Congestion data invalid or missing. Run scripts/congestion_map.py.")
 
 # -----------------------------
-# LAUNCH SUCCESS
+# 🚀 LAUNCH SUCCESS
 # -----------------------------
 elif choice == "🚀 Launch Success":
     st.subheader("🚀 Hybrid Launch Success Predictor")
@@ -147,7 +143,7 @@ elif choice == "🚀 Launch Success":
         st.info("No launch success scores computed yet.")
 
 # -----------------------------
-# LAUNCH TRACKER
+# 📡 LAUNCH TRACKER
 # -----------------------------
 elif choice == "📡 Launch Tracker":
     st.subheader("📡 Upcoming Launches")
@@ -159,7 +155,7 @@ elif choice == "📡 Launch Tracker":
         st.warning("No upcoming launches available.")
 
 # -----------------------------
-# ANOMALIES
+# ⚠️ ANOMALIES
 # -----------------------------
 elif choice == "⚠️ Anomalies":
     st.subheader("⚠️ Orbital Anomalies")
