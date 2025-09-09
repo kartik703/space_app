@@ -1,6 +1,8 @@
+# app.py
 import streamlit as st
 import altair as alt
 from pathlib import Path
+import subprocess
 from utils import set_background, read_csv_safe, badge, human_ts
 
 # -----------------------------
@@ -36,26 +38,34 @@ choice = st.sidebar.radio(
 # -----------------------------
 if choice == "🌞 Space Weather":
     st.subheader("🌞 Space Weather (NOAA + AI Forecast)")
-    kp = read_csv_safe(DATA / "kp_latest.csv", parse_dates=["time_tag"])
-    fc = read_csv_safe(DATA / "kp_forecast.csv", parse_dates=["time"])
 
-    if not kp.empty:
+    kp = read_csv_safe(DATA / "kp_latest.csv")
+    fc = read_csv_safe(DATA / "kp_forecast.csv")
+
+    if not kp.empty and "Kp" in kp.columns:
         st.metric("Current Kp", kp["Kp"].iloc[-1])
         st.caption("Source: NOAA SWPC")
 
-    if not fc.empty and {"time", "forecast"}.issubset(fc.columns):
-        horizon = st.slider("Forecast horizon (hours)", 12, 48, 24)
-        subset = fc.head(horizon)
+    if not fc.empty:
+        # Normalize time column
+        if "time" not in fc.columns:
+            for alt_name in ["time_tag", "timestamp", "date"]:
+                if alt_name in fc.columns:
+                    fc = fc.rename(columns={alt_name: "time"})
+                    break
 
-        chart = alt.Chart(subset).mark_line(color="cyan").encode(
-            x="time:T",
-            y=alt.Y("forecast:Q", title="Kp Index"),
-            tooltip=["time", "forecast"]
-        ).properties(title=f"{horizon}h Forecast")
+        if {"time", "forecast"}.issubset(fc.columns):
+            horizon = st.slider("Forecast horizon (hours)", 12, 48, 24)
+            subset = fc.head(horizon)
 
-        st.altair_chart(chart, use_container_width=True)
-    elif not fc.empty:
-        st.warning("Forecast present but missing time/forecast columns.")
+            chart = alt.Chart(subset).mark_line(color="cyan").encode(
+                x="time:T",
+                y=alt.Y("forecast:Q", title="Kp Index"),
+                tooltip=["time", "forecast"]
+            ).properties(title=f"{horizon}h Forecast")
+            st.altair_chart(chart, use_container_width=True)
+        else:
+            st.warning(f"⚠️ Forecast file missing expected columns. Found: {list(fc.columns)}")
     else:
         st.info("No forecast data available.")
 
@@ -64,15 +74,16 @@ if choice == "🌞 Space Weather":
 # -----------------------------
 elif choice == "🪨 Asteroid Mining":
     st.subheader("🪨 Asteroid Mining Opportunities")
+
     ast = read_csv_safe(DATA / "asteroids_scored.csv")
 
     if not ast.empty and "profit_index" in ast.columns:
         top = ast.sort_values("profit_index", ascending=False).head(10)
 
-        # Debugging: show columns
+        # Show available columns for debugging
         st.caption(f"Available columns: {list(ast.columns)}")
 
-        # Column alias mapping
+        # Define possible column mappings
         column_aliases = {
             "object": ["object", "name", "id"],
             "dv_kms": ["dv_kms", "delta_v", "delta_v_kms"],
@@ -80,7 +91,7 @@ elif choice == "🪨 Asteroid Mining":
             "profit_index": ["profit_index"]
         }
 
-        # Pick available columns
+        # Build safe list of columns that actually exist
         selected_cols = []
         for canonical, aliases in column_aliases.items():
             for alias in aliases:
@@ -147,9 +158,9 @@ elif choice == "🚀 Launch Success":
 # -----------------------------
 elif choice == "📡 Launch Tracker":
     st.subheader("📡 Upcoming Launches")
-    launches = read_csv_safe(DATA / "launches.csv", parse_dates=["window_start"])
+    launches = read_csv_safe(DATA / "launches.csv")
 
-    if not launches.empty:
+    if not launches.empty and {"name","window_start","provider","pad"}.issubset(launches.columns):
         st.dataframe(launches[["name","window_start","provider","pad"]].head(15))
     else:
         st.warning("No upcoming launches available.")
@@ -159,6 +170,13 @@ elif choice == "📡 Launch Tracker":
 # -----------------------------
 elif choice == "⚠️ Anomalies":
     st.subheader("⚠️ Orbital Anomalies")
+
+    # 🔄 Auto-refresh anomalies by running pipeline
+    try:
+        subprocess.run(["python", "scripts/run_all.py"], check=True)
+    except Exception as e:
+        st.warning(f"⚠️ Could not refresh anomalies automatically: {e}")
+
     anom = read_csv_safe(DATA / "anomalies.csv")
 
     if not anom.empty:
@@ -169,4 +187,4 @@ elif choice == "⚠️ Anomalies":
 # -----------------------------
 # FOOTER
 # -----------------------------
-st.sidebar.success("✅ Data auto-refreshed via run_all.py nightly")
+st.sidebar.success("✅ Data auto-refreshed via run_all.py")
