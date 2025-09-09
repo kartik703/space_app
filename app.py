@@ -39,23 +39,23 @@ choice = st.sidebar.radio(
 if choice == "🌞 Space Weather":
     st.subheader("🌞 Space Weather (NOAA + AI Forecast)")
 
-    kp = read_csv_safe(DATA / "kp_latest.csv")
-    fc = read_csv_safe(DATA / "kp_forecast.csv")
+    kp = read_csv_safe(DATA / "kp_latest.csv", parse_dates=["time_tag"])
+    fc = read_csv_safe(DATA / "kp_forecast.csv", parse_dates=["time_tag"])
 
     if not kp.empty and "Kp" in kp.columns:
         st.metric("Current Kp", kp["Kp"].iloc[-1])
         st.caption("Source: NOAA SWPC")
 
     if not fc.empty:
-        # Normalize column names
-        col_map = {"kp_pred": "forecast"}
+        # Normalize columns
+        col_map = {"time_tag": "time", "kp_pred": "forecast"}
         fc = fc.rename(columns={c: col_map.get(c, c) for c in fc.columns})
 
         if {"time", "forecast"}.issubset(fc.columns):
             horizon = st.slider("Forecast horizon (hours)", 12, 48, 24)
             subset = fc.head(horizon)
 
-            # Line + uncertainty band
+            # Base chart
             base = alt.Chart(subset).encode(x="time:T")
 
             line = base.mark_line(color="cyan").encode(
