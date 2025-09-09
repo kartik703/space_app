@@ -47,28 +47,40 @@ if choice == "🌞 Space Weather":
         st.caption("Source: NOAA SWPC")
 
     if not fc.empty:
-        # Normalize time column
-        if "time" not in fc.columns:
-            for alt_name in ["time_tag", "timestamp", "date"]:
-                if alt_name in fc.columns:
-                    fc = fc.rename(columns={alt_name: "time"})
-                    break
+        # Normalize column names
+        col_map = {"kp_pred": "forecast"}
+        fc = fc.rename(columns={c: col_map.get(c, c) for c in fc.columns})
 
         if {"time", "forecast"}.issubset(fc.columns):
             horizon = st.slider("Forecast horizon (hours)", 12, 48, 24)
             subset = fc.head(horizon)
 
-            chart = alt.Chart(subset).mark_line(color="cyan").encode(
-                x="time:T",
+            # Line + uncertainty band
+            base = alt.Chart(subset).encode(x="time:T")
+
+            line = base.mark_line(color="cyan").encode(
                 y=alt.Y("forecast:Q", title="Kp Index"),
                 tooltip=["time", "forecast"]
-            ).properties(title=f"{horizon}h Forecast")
-            st.altair_chart(chart, use_container_width=True)
+            )
+
+            if {"kp_lo", "kp_hi"}.issubset(fc.columns):
+                band = base.mark_area(opacity=0.3, color="cyan").encode(
+                    y="kp_lo:Q",
+                    y2="kp_hi:Q",
+                    tooltip=["kp_lo", "kp_hi"]
+                )
+                chart = band + line
+            else:
+                chart = line
+
+            st.altair_chart(
+                chart.properties(title=f"{horizon}h Forecast"),
+                use_container_width=True
+            )
         else:
             st.warning(f"⚠️ Forecast file missing expected columns. Found: {list(fc.columns)}")
     else:
         st.info("No forecast data available.")
-
 # -----------------------------
 # 🪨 ASTEROID MINING
 # -----------------------------
