@@ -12,12 +12,18 @@ from pathlib import Path
 # Add current directory to path for imports
 sys.path.append(str(Path(__file__).parent))
 
-# Import the main dashboard
+# Import the ALL-IN-ONE comprehensive dashboard with simulations, YOLO, asteroids, and all data
 try:
-    from fusion_ai_live import main as fusion_main
-    FUSION_AVAILABLE = True
+    import main as comprehensive_main
+    COMPREHENSIVE_AVAILABLE = True
 except ImportError:
-    FUSION_AVAILABLE = False
+    try:
+        from space_ai_app import main as space_ai_main
+        SPACE_AI_AVAILABLE = True
+        COMPREHENSIVE_AVAILABLE = False
+    except ImportError:
+        SPACE_AI_AVAILABLE = False
+        COMPREHENSIVE_AVAILABLE = False
 
 def main():
     """Main application entry point"""
@@ -29,14 +35,17 @@ def main():
         initial_sidebar_state="expanded"
     )
     
-    # Check if this is the main dashboard or redirect
-    if FUSION_AVAILABLE:
-        # Run the fusion AI dashboard
-        fusion_main()
+    # Check for the ALL-IN-ONE comprehensive dashboard
+    if COMPREHENSIVE_AVAILABLE:
+        # Run the ALL-IN-ONE dashboard with simulations, YOLO data, asteroid data, and everything
+        comprehensive_main.main()
+    elif SPACE_AI_AVAILABLE:
+        # Fallback to space AI dashboard
+        space_ai_main()
     else:
         # Fallback interface
         st.title("🚀 Space AI System")
-        st.error("❌ Main dashboard not available. Please check installation.")
+        st.error("❌ ALL-IN-ONE comprehensive dashboard not available. Please check installation.")
         
         st.markdown("""
         ## Quick Setup:

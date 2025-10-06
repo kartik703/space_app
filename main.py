@@ -368,7 +368,7 @@ def show_yolo_detection():
                     processed_image, detections = result
                     
                     if processed_image:
-                        st.image(processed_image, caption="Real-time Solar Activity with YOLO Detection", width="stretch")
+                        st.image(processed_image, caption="Real-time Solar Activity with YOLO Detection", use_container_width=True)
                         
                         # Display detections
                         if detections:
