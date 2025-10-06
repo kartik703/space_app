@@ -1,0 +1,65 @@
+{
+  "application": {
+    "name": "Space Intelligence Platform",
+    "version": "3.0.0",
+    "environment": "production"
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8501,
+    "auto_reload": true,
+    "headless": true
+  },
+  "data_pipeline": {
+    "enabled": true,
+    "refresh_interval_seconds": 300,
+    "retry_attempts": 3,
+    "timeout_seconds": 30,
+    "sources": {
+      "space_weather": {
+        "enabled": true,
+        "url": "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json",
+        "refresh_interval": 300
+      },
+      "iss_location": {
+        "enabled": true,
+        "url": "http://api.open-notify.org/iss-now.json",
+        "refresh_interval": 60
+      },
+      "satellite_data": {
+        "enabled": true,
+        "url": "https://api.wheretheiss.at/v1/satellites/25544",
+        "refresh_interval": 120
+      },
+      "solar_images": {
+        "enabled": true,
+        "url": "https://sdo.gsfc.nasa.gov/assets/img/latest/latest_1024_0193.jpg",
+        "refresh_interval": 1800
+      }
+    }
+  },
+  "monitoring": {
+    "enabled": true,
+    "health_check_interval": 60,
+    "resource_monitoring": true,
+    "log_level": "INFO",
+    "alerts": {
+      "cpu_threshold": 90,
+      "memory_threshold": 90,
+      "disk_threshold": 90
+    }
+  },
+  "automation": {
+    "auto_recovery": true,
+    "backup_enabled": true,
+    "backup_interval_hours": 24,
+    "cleanup_old_data": true,
+    "data_retention_days": 30
+  },
+  "ui": {
+    "auto_refresh_seconds": 30,
+    "theme": "dark",
+    "enable_3d": true,
+    "show_debug_info": false
+  }
+}
