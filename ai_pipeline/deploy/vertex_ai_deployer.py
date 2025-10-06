@@ -14,6 +14,7 @@ import json
 from datetime import datetime
 import tempfile
 import zipfile
+import base64
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
