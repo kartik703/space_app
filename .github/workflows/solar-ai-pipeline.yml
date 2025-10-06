@@ -1,0 +1,304 @@
+name: Automated Solar Data Collection and Model Training
+
+# Trigger the workflow on schedule and manual dispatch
+on:
+  schedule:
+    # Run daily at 6:00 AM UTC to collect new solar data
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      force_retrain:
+        description: 'Force model retraining even if no new data'
+        required: false
+        default: 'false'
+        type: boolean
+      data_collection_hours:
+        description: 'Hours of recent data to collect'
+        required: false
+        default: '24'
+        type: string
+
+env:
+  PYTHON_VERSION: '3.11'
+  MODEL_THRESHOLD: 0.8  # Minimum accuracy threshold for deployment
+
+jobs:
+  collect-data:
+    name: 🌞 Collect Solar Data
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    
+    outputs:
+      new_data_collected: ${{ steps.data_check.outputs.new_data }}
+      total_images: ${{ steps.data_check.outputs.total_images }}
+    
+    steps:
+    - name: 📥 Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
+    
+    - name: 🐍 Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+    
+    - name: 📦 Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install --upgrade ultralytics opencv-python-headless google-cloud-bigquery
+    
+    - name: 🔑 Authenticate with Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+    
+    - name: 📊 Collect Storm Events Data
+      run: |
+        python scripts/storm_event_collector.py \
+          --start_date "$(date -d '30 days ago' +%Y-%m-%d)" \
+          --end_date "$(date +%Y-%m-%d)" \
+          --output_table "space_weather.storm_events"
+      continue-on-error: true
+    
+    - name: 🖼️ Collect Solar Images
+      run: |
+        # Create data directories
+        mkdir -p data/solar_images/{storm,quiet,flare,cme}
+        
+        # Run enhanced data collector with error handling
+        python scripts/local_data_collector.py --max_images 500 || echo "Local collector completed with warnings"
+        
+        # Try to enhance dataset if we have storm data
+        python scripts/storm_data_enhancer.py --target_samples 200 || echo "Enhancement completed with warnings"
+      timeout-minutes: 90
+    
+    - name: 📈 Check Data Collection Results
+      id: data_check
+      run: |
+        # Count collected images
+        STORM_COUNT=$(find data/solar_images/storm -name "*.jpg" -o -name "*.png" | wc -l)
+        QUIET_COUNT=$(find data/solar_images/quiet -name "*.jpg" -o -name "*.png" | wc -l)
+        FLARE_COUNT=$(find data/solar_images/flare -name "*.jpg" -o -name "*.png" | wc -l)
+        CME_COUNT=$(find data/solar_images/cme -name "*.jpg" -o -name "*.png" | wc -l)
+        TOTAL_COUNT=$((STORM_COUNT + QUIET_COUNT + FLARE_COUNT + CME_COUNT))
+        
+        echo "🌞 Data Collection Summary:"
+        echo "  Storm images: $STORM_COUNT"
+        echo "  Quiet images: $QUIET_COUNT"
+        echo "  Flare images: $FLARE_COUNT"
+        echo "  CME images: $CME_COUNT"
+        echo "  Total images: $TOTAL_COUNT"
+        
+        # Set outputs
+        echo "total_images=$TOTAL_COUNT" >> $GITHUB_OUTPUT
+        
+        # Check if we have enough new data for retraining
+        if [ "$TOTAL_COUNT" -gt 100 ] || [ "${{ github.event.inputs.force_retrain }}" = "true" ]; then
+          echo "new_data=true" >> $GITHUB_OUTPUT
+          echo "✅ Sufficient data for model training"
+        else
+          echo "new_data=false" >> $GITHUB_OUTPUT
+          echo "⚠️ Insufficient data for retraining (need >100 images)"
+        fi
+    
+    - name: 💾 Commit New Data
+      if: steps.data_check.outputs.total_images > 50
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        # Add only new data files
+        git add data/solar_images/
+        git add data/*.csv 2>/dev/null || true
+        
+        # Check if there are changes to commit
+        if ! git diff --staged --quiet; then
+          git commit -m "🌞 Automated solar data collection: ${{ steps.data_check.outputs.total_images }} images"
+          git push
+          echo "📤 Pushed new data to repository"
+        else
+          echo "📝 No new data files to commit"
+        fi
+
+  train-model:
+    name: 🤖 Train Solar AI Model
+    runs-on: ubuntu-latest
+    needs: collect-data
+    if: needs.collect-data.outputs.new_data_collected == 'true'
+    timeout-minutes: 180
+    
+    outputs:
+      model_accuracy: ${{ steps.training.outputs.accuracy }}
+      model_path: ${{ steps.training.outputs.model_path }}
+    
+    steps:
+    - name: 📥 Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
+        ref: main  # Ensure we have the latest data
+    
+    - name: 🐍 Set up Python with GPU Support
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+    
+    - name: 📦 Install Training Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+        pip install ultralytics wandb tensorboard
+    
+    - name: 📊 Prepare Training Dataset
+      run: |
+        # Create enhanced distinct dataset
+        python scripts/enhanced_distinct_dataset_creator.py \
+          --input_dir "data/solar_images" \
+          --output_dir "data/training_dataset" \
+          --samples_per_class 150
+      timeout-minutes: 30
+    
+    - name: 🏋️ Train YOLO Model
+      id: training
+      run: |
+        # Set up training environment
+        export WANDB_MODE=disabled  # Disable wandb for CI
+        
+        # Start training with error handling
+        python scripts/enhanced_distinct_yolo_trainer.py \
+          --dataset_dir "data/training_dataset" \
+          --output_dir "models/auto_trained_$(date +%Y%m%d)" \
+          --epochs 50 \
+          --batch_size 16 \
+          --patience 10 > training_log.txt 2>&1
+        
+        # Extract training results
+        ACCURACY=$(grep -o "mAP50.*: [0-9.]*" training_log.txt | tail -1 | grep -o "[0-9.]*" || echo "0.0")
+        MODEL_DIR=$(find models/ -name "auto_trained_*" -type d | sort | tail -1)
+        MODEL_PATH="$MODEL_DIR/best.pt"
+        
+        echo "🎯 Training Results:"
+        echo "  Accuracy (mAP@0.5): $ACCURACY"
+        echo "  Model Path: $MODEL_PATH"
+        
+        # Set outputs
+        echo "accuracy=$ACCURACY" >> $GITHUB_OUTPUT
+        echo "model_path=$MODEL_PATH" >> $GITHUB_OUTPUT
+        
+        # Save training log as artifact
+        echo "📄 Training completed - see training_log.txt for details"
+      timeout-minutes: 120
+    
+    - name: 🧪 Validate Model Performance
+      run: |
+        # Run comprehensive model testing
+        python scripts/comprehensive_solar_tester.py \
+          --model_path "${{ steps.training.outputs.model_path }}" \
+          --test_dir "data/solar_images" \
+          --output_report "model_validation_report.json"
+        
+        # Display results
+        cat model_validation_report.json | jq '.'
+    
+    - name: 📤 Upload Training Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: training-artifacts-${{ github.run_number }}
+        path: |
+          training_log.txt
+          model_validation_report.json
+          models/auto_trained_*/
+        retention-days: 30
+    
+    - name: 💾 Commit Trained Model
+      if: steps.training.outputs.accuracy > env.MODEL_THRESHOLD
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        # Add model files
+        git add models/auto_trained_*/
+        git add model_validation_report.json
+        
+        # Commit with training metrics
+        git commit -m "🤖 Auto-trained model: ${{ steps.training.outputs.accuracy }} mAP@0.5"
+        git push
+        
+        echo "✅ Deployed model with ${{ steps.training.outputs.accuracy }} accuracy"
+
+  deploy-model:
+    name: 🚀 Deploy Model to Production
+    runs-on: ubuntu-latest
+    needs: [collect-data, train-model]
+    if: needs.train-model.outputs.model_accuracy > 0.8
+    environment: production
+    
+    steps:
+    - name: 📥 Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        ref: main
+    
+    - name: 🔄 Update Production Model Link
+      run: |
+        # Update the symlink to point to the new best model
+        ln -sf "${{ needs.train-model.outputs.model_path }}" "models/production_solar_model.pt"
+        
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add models/production_solar_model.pt
+        git commit -m "🚀 Production model updated: ${{ needs.train-model.outputs.model_accuracy }} mAP"
+        git push
+    
+    - name: 📊 Create Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: model-v${{ github.run_number }}
+        release_name: Solar AI Model v${{ github.run_number }}
+        body: |
+          🌞 **Automated Solar AI Model Release**
+          
+          **Performance Metrics:**
+          - mAP@0.5: ${{ needs.train-model.outputs.model_accuracy }}
+          - Training Images: ${{ needs.collect-data.outputs.total_images }}
+          - Training Date: ${{ github.run_date }}
+          
+          **Model Capabilities:**
+          - ☀️ Quiet Sun Detection
+          - 🌩️ Active Storm Detection  
+          - 🔥 Solar Flare Detection
+          - 💥 CME Activity Detection
+          
+          **Deployment:** This model is automatically deployed to production.
+        draft: false
+        prerelease: false
+
+  notify-completion:
+    name: 📢 Notify Completion
+    runs-on: ubuntu-latest
+    needs: [collect-data, train-model, deploy-model]
+    if: always()
+    
+    steps:
+    - name: 📊 Generate Summary
+      run: |
+        echo "🌞 **Solar AI Pipeline Summary**" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Data Collection:** ${{ needs.collect-data.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Images collected: ${{ needs.collect-data.outputs.total_images || 'N/A' }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Model Training:** ${{ needs.train-model.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Model accuracy: ${{ needs.train-model.outputs.model_accuracy || 'N/A' }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Deployment:** ${{ needs.deploy-model.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Next scheduled run:** $(date -d 'tomorrow 6:00' '+%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY

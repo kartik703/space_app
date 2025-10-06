@@ -1,3 +1,56 @@
 data/*.csv
 .venv/
+# Byte-compiled / optimized / DLL files
 __pycache__/
+*.py[cod]
+*$py.class
+
+# Space App Specific
+data/
+models/
+logs/
+*.log
+*.db
+*.pkl
+*.pt
+*.pth
+*.h5
+*.json.bak
+*.csv.bak
+*_backup_*
+
+# Virtual Environment
+.venv/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Sensitive Files
+*.key
+*secret*
+*credentials*
+api_keys.json
+config.json
+
+# Large Files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Temporary Files
+tmp/
+temp/
+.tmp
+.cache/
