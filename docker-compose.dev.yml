@@ -1,0 +1,45 @@
+version: '3.8'
+
+# 🛠️ Development Configuration Override
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  space-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    volumes:
+      - .:/app:rw
+      - /app/__pycache__
+      - /app/.git
+      - /app/node_modules
+    environment:
+      - ENVIRONMENT=development
+      - STREAMLIT_SERVER_RUN_ON_SAVE=true
+      - STREAMLIT_SERVER_FILE_WATCHER_TYPE=poll
+      - PYTHONPATH=/app
+    command: streamlit run main.py --server.port=8501 --server.address=0.0.0.0 --server.runOnSave=true --server.fileWatcherType=poll
+    ports:
+      - "8501:8501"
+      - "8502:8502"  # Alternative port
+    restart: "no"  # Don't restart in dev mode
+    profiles:
+      - dev
+
+  # 🔧 Development Tools
+  dev-tools:
+    image: python:3.11-slim
+    volumes:
+      - .:/workspace:rw
+    working_dir: /workspace
+    command: tail -f /dev/null
+    profiles:
+      - dev-tools
+    networks:
+      - space_network
+
+networks:
+  space_network:
+    external: true
+    name: space_intelligence_network

@@ -1,11 +1,14 @@
-# 🚀 Space AI System
+# 🚀 Space Intelligence Platform v3.0
 
-[![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://python.org)
+[![CI/CD Pipeline](https://github.com/kartik703/space_app/actions/workflows/ci-cd-pipeline.yml/badge.svg)](https://github.com/kartik703/space_app/actions)
+[![Data Monitoring](https://github.com/kartik703/space_app/actions/workflows/monitoring.yml/badge.svg)](https://github.com/kartik703/space_app/actions)
+[![Docker Build](https://github.com/kartik703/space_app/actions/workflows/deployment.yml/badge.svg)](https://github.com/kartik703/space_app/actions)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-blue)](https://python.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.28%2B-red)](https://streamlit.io)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED)](https://docker.com)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![AI](https://img.shields.io/badge/AI-YOLO%20%7C%20ML%20%7C%20CV-orange)](https://github.com/kartik703/space_app)
 
-Real-time space weather monitoring with AI-powered solar storm detection using NASA and NOAA data.
+**Advanced real-time space data analytics with AI-powered insights, automated CI/CD pipelines, and comprehensive monitoring**
 
 ## 🎯 Quick Demo
 ```bash

@@ -1,29 +1,75 @@
 version: '3.8'
 
 services:
-  space-ai-backend:
-    build: .
-    ports:
-      - "8000:8000"
-    environment:
-      - ENV=production
-    volumes:
-      - ./storage:/app/storage
-      - ./logs:/app/logs
-    restart: unless-stopped
-    
-  space-ai-frontend:
-    build: .
+  # 🚀 Space Intelligence Platform
+  space-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8501:8501"
     environment:
-      - BACKEND_URL=http://space-ai-backend:8000
-    depends_on:
-      - space-ai-backend
+      - ENVIRONMENT=production
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_HEADLESS=true
+    volumes:
+      - ./data:/app/data:rw
+      - ./logs:/app/logs:rw
     restart: unless-stopped
-    
-  redis:
-    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - space_network
+
+  # 📊 Monitoring with Prometheus (Optional)
+  prometheus:
+    image: prom/prometheus:latest
     ports:
-      - "6379:6379"
-    restart: unless-stopped
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - space_network
+    profiles:
+      - monitoring
+
+  # 📈 Grafana Dashboard (Optional)
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=space123
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - space_network
+    profiles:
+      - monitoring
+    depends_on:
+      - prometheus
+
+networks:
+  space_network:
+    driver: bridge
+    name: space_intelligence_network
+
+volumes:
+  prometheus_data:
+    name: space_prometheus_data
+  grafana_data:
+    name: space_grafana_data
