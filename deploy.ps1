@@ -238,7 +238,7 @@ switch ($Command) {
         Start-MainDeployment
     }
     "stop" {
-        Write-Log "🛑 Stopping Space Intelligence Platform..."
+        Write-Log "Stopping Space Intelligence Platform..."
         docker-compose down
         Write-Log "✅ Application stopped"
     }
@@ -249,7 +249,7 @@ switch ($Command) {
         docker-compose ps
     }
     "clean" {
-        Write-Log "🧹 Cleaning up Docker resources..."
+        Write-Log "Cleaning up Docker resources..."
         docker-compose down -v --remove-orphans
         docker image prune -f
         Write-Log "✅ Cleanup completed"
@@ -259,7 +259,7 @@ switch ($Command) {
         Write-Log "✅ Backup created at: $BackupDir"
     }
     "monitor" {
-        Write-Log "📊 Starting monitoring stack..."
+        Write-Log "Starting monitoring stack..."
         docker-compose --profile monitoring up -d
         Write-Log "✅ Monitoring stack started"
     }
