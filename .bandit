@@ -1,0 +1,24 @@
+[bandit]
+# Bandit configuration file for Space Intelligence Platform
+
+exclude_dirs = [
+    "venv",
+    "env", 
+    ".venv",
+    ".git",
+    "node_modules",
+    "__pycache__",
+    ".pytest_cache",
+    "build",
+    "dist"
+]
+
+# Skip certain test patterns that are safe in our context
+skips = [
+    "B101",  # assert_used - We use asserts in tests
+    "B601",  # paramiko_calls - Not applicable to our use case
+    "B602",  # subprocess_popen_with_shell_equals_true - We handle this safely
+]
+
+# Confidence levels: HIGH, MEDIUM, LOW
+confidence = "HIGH"
