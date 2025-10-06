@@ -1,44 +1,62 @@
 # 🚀 Space Intelligence Platform Docker Image
 FROM python:3.11-slim
 
+# Set build arguments for multi-platform support
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+ARG TARGETARCH
+
 # Set metadata
 LABEL org.opencontainers.image.title="Space Intelligence Platform"
 LABEL org.opencontainers.image.description="Real-time space intelligence with NASA, NOAA, and ISS data"
 LABEL org.opencontainers.image.version="3.0"
 LABEL org.opencontainers.image.authors="Space Intelligence Team"
+LABEL org.opencontainers.image.source="https://github.com/kartik703/space_app"
 
 # Set working directory
 WORKDIR /app
 
 # Install system dependencies for OpenCV and other requirements
-RUN apt-get update && apt-get install -y \
+# Use --no-install-recommends to reduce image size
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
-    libxrender-dev \
+    libxrender1 \
     libgomp1 \
+    libgthread-2.0-0 \
+    libgtk-3-0 \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    git \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /tmp/* \
+    && rm -rf /var/tmp/*
 
 # Create non-root user for security
-RUN useradd --create-home --shell /bin/bash app \
+RUN useradd --create-home --shell /bin/bash --uid 1000 app \
     && chown -R app:app /app
-USER app
-
+    
 # Copy requirements first for better caching
-COPY --chown=app:app requirements*.txt ./
+COPY requirements*.txt ./
 
-# Install Python dependencies
-RUN pip install --user --no-cache-dir -r requirements.txt
+# Install Python dependencies as root for better performance
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt \
+    && pip cache purge
+
+# Switch to non-root user
+USER app
 
 # Copy application code
 COPY --chown=app:app . .
 
 # Create data directory for live updates
-RUN mkdir -p data/live
+RUN mkdir -p data/live logs \
+    && chmod 755 data/live logs
 
 # Expose Streamlit port
 EXPOSE 8501
