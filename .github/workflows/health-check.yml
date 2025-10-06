@@ -1,0 +1,43 @@
+name: Health Check
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:
+
+jobs:
+  health-check:
+    name: Application Health Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Check Repository Status
+      run: |
+        echo "Repository: ${{ github.repository }}"
+        echo "Branch: ${{ github.ref }}"
+        echo "Commit: ${{ github.sha }}"
+        echo "Timestamp: $(date)"
+        
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: Verify Key Files
+      run: |
+        echo "Checking key files..."
+        test -f main.py && echo "✅ main.py exists" || echo "❌ main.py missing"
+        test -f requirements.txt && echo "✅ requirements.txt exists" || echo "❌ requirements.txt missing"
+        test -f Dockerfile && echo "✅ Dockerfile exists" || echo "❌ Dockerfile missing"
+        test -f README.md && echo "✅ README.md exists" || echo "❌ README.md missing"
+        
+    - name: Check Workflows
+      run: |
+        echo "Checking workflow files..."
+        ls -la .github/workflows/
+        
+    - name: System Information
+      run: |
+        echo "System Information:"
+        echo "OS: $(uname -a)"
+        echo "Python: $(python3 --version 2>/dev/null || echo 'Not available')"
+        echo "Docker: $(docker --version 2>/dev/null || echo 'Not available')"
+        echo "Git: $(git --version 2>/dev/null || echo 'Not available')"
