@@ -1,0 +1,26 @@
+{
+  "app": {
+    "title": "Space Intelligence AI Platform",
+    "version": "1.0.0",
+    "description": "Enterprise-grade space weather monitoring and risk assessment",
+    "host": "0.0.0.0",
+    "port": 8000,
+    "debug": false
+  },
+  "ai_models": {
+    "yolo_path": "storage/models/solar_yolo.pt",
+    "ml_models_dir": "storage/models/",
+    "inference_timeout": 30
+  },
+  "data_sources": {
+    "nasa_sdo": "https://sdo.gsfc.nasa.gov/assets/img/latest/",
+    "noaa_swpc": "https://services.swpc.noaa.gov/json/",
+    "kyoto_wdc": "http://wdc.kugi.kyoto-u.ac.jp/",
+    "collection_interval": 30
+  },
+  "security": {
+    "jwt_secret": "your-secret-key-change-in-production",
+    "jwt_expire_hours": 24,
+    "rate_limit": "100/hour"
+  }
+}

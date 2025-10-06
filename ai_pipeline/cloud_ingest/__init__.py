@@ -1,0 +1,1 @@
+"""Cloud ingestion modules for solar data"""

@@ -1,0 +1,67 @@
+# 🚀 SPACE INTELLIGENCE AI PLATFORM - BACKEND DOCKERFILE
+# FastAPI backend with AI models and data processing capabilities
+FROM python:3.11-slim
+
+LABEL maintainer="Space AI Team"
+LABEL version="1.0.0"
+LABEL description="FastAPI backend for Space Intelligence AI Platform"
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    curl \
+    git \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    libgdal-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set work directory
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt /app/
+COPY backend_requirements.txt /app/
+
+# Install Python dependencies
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt && \
+    pip install -r backend_requirements.txt
+
+# Copy source code
+COPY backend_api.py /app/
+COPY utils.py /app/
+COPY continuous_space_collector.py /app/
+COPY train_all_ai_models.py /app/
+COPY cv_pipeline/ /app/cv_pipeline/
+COPY scripts/ /app/scripts/
+
+# Create necessary directories
+RUN mkdir -p /app/data /app/models /app/logs /app/temp
+
+# Copy model files if they exist (handle optional copy)
+RUN mkdir -p /app/models
+
+# Set proper permissions
+RUN chmod +x /app/backend_api.py
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/api/health || exit 1
+
+# Expose port
+EXPOSE 8000
+
+# Run the application
+CMD ["uvicorn", "backend_api:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
